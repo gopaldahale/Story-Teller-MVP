@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         let extractedText;
         try {
             // Use gemini-1.5-pro which supports vision, or gemini-2.0-flash which also supports vision
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const prompt = "Extract all text from this image. Return only the text content, nothing else.";
             
             const imagePart = base64ToGeminiFormat(image);
