@@ -1,12 +1,8 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from "stream";
 
 // Initialize ElevenLabs client - it will read ELEVENLABS_API_KEY from environment automatically
 const elevenlabs = new ElevenLabsClient();
-
-// Initialize Gemini AI client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Input sanitization function to prevent prompt injection
 function sanitizeInput(input) {
@@ -27,7 +23,7 @@ function sanitizeInput(input) {
 
 /**
  * Vercel Serverless Function Handler
- * POST /api/generate
+ * POST /api/generate-voice
  */
 export default async function handler(req, res) {
     // Secure CORS - restrict to frontend domain
@@ -55,58 +51,36 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    console.log("POST /api/generate request received");
-    
+    console.log("POST /api/generate-voice request received");
     try {
         const { text } = req.body;
-        const userInput = text?.trim() || "";
+        const storyText = text?.trim() || "";
         
-        if (!userInput) {
+        if (!storyText) {
             return res.status(400).json({ 
-                error: "Text is required. Please provide a story idea or topic." 
+                error: "Story text is required to generate voiceover." 
             });
         }
 
-        console.log("User input:", userInput.substring(0, 100) + "...");
-
-        // Generate story with Gemini
-        console.log("Generating story with Gemini...");
-        let generatedStory;
-        try {
-            // Sanitize input to prevent prompt injection
-            const sanitizedInput = sanitizeInput(userInput);
-            if (!sanitizedInput || sanitizedInput.length === 0) {
-                return res.status(400).json({ 
-                    error: "Invalid input. Please provide valid text." 
-                });
-            }
-            
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-            const prompt = `Write a very short, engaging story based on this idea: "${sanitizedInput}". 
-Include natural dialogues between characters, proper narrative flow, and make it interesting. 
-Keep it under 20 words and make it suitable for text-to-speech reading. 
-Don't include markdown formatting or special characters, just plain text with dialogue.`;
-            
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            generatedStory = response.text();
-            console.log("Story generated successfully, length:", generatedStory.length, "chars");
-        } catch (geminiErr) {
-            console.error("Gemini generation error:", geminiErr);
-            throw new Error(`Failed to generate story: ${geminiErr.message}`);
+        // Sanitize story text before sending to ElevenLabs
+        const sanitizedStoryText = sanitizeInput(storyText);
+        if (!sanitizedStoryText || sanitizedStoryText.length === 0) {
+            return res.status(400).json({ 
+                error: "Invalid story text. Please provide valid text to generate voiceover." 
+            });
         }
 
-        console.log("Generated story preview:", generatedStory.substring(0, 150) + "...");
+        console.log("Generating audio with ElevenLabs for text length:", sanitizedStoryText.length);
 
         // Generate audio using ElevenLabs TTS
-        const voiceId = process.env.ELEVENLABS_VOICE_ID || "jUjRbhZWoMK4aDciW36V"; // Default voice
+        const voiceId = process.env.ELEVENLABS_VOICE_ID || "jUjRbhZWoMK4aDciW36V";
         console.log("Calling ElevenLabs TTS with voiceId:", voiceId);
         let audioStream;
         try {
             audioStream = await elevenlabs.textToSpeech.convert(
                 voiceId,
                 {
-                    text: generatedStory,
+                    text: sanitizedStoryText,
                     modelId: 'eleven_multilingual_v2',
                     outputFormat: 'mp3_44100_128',
                 }
@@ -117,23 +91,19 @@ Don't include markdown formatting or special characters, just plain text with di
             throw new Error(`Failed to generate audio: ${ttsErr.message}`);
         }
 
-        // Check if stream exists
         if (!audioStream) {
             console.error("No audio stream received from ElevenLabs");
             throw new Error("No valid audio stream received from ElevenLabs");
         }
 
-        // Handle the audio stream (convert to buffer for Node.js)
-        // Convert Web ReadableStream to Node.js Readable stream if needed
+        // Convert stream to buffer
         console.log("Reading audio stream...");
         const chunks = [];
         let nodeStream;
         
-        // Check if it's a Web ReadableStream that needs conversion
         if (audioStream instanceof ReadableStream) {
             nodeStream = Readable.fromWeb(audioStream);
         } else {
-            // Already a Node.js stream
             nodeStream = audioStream;
         }
         
@@ -164,19 +134,21 @@ Don't include markdown formatting or special characters, just plain text with di
         const audioBase64 = audioBuffer.toString("base64");
 
         // Send back audio
-        console.log("Sending response with audio base64 length:", audioBase64.length);
-        return res.json({
-            text: generatedStory,
+        console.log("Sending response with audio");
+        res.json({
             audioBase64,
             audioMime: "audio/mpeg"
         });
+        console.log("Response sent successfully");
 
     } catch (err) {
         console.error("Server error:", err);
-        // Ensure we always send a JSON response, even if something goes wrong
-        // Never expose stack traces to clients - security risk
-        return res.status(500).json({ 
-            error: "An error occurred processing your request. Please try again."
-        });
+        if (!res.headersSent) {
+            // Never expose stack traces to clients - security risk
+            res.status(500).json({ 
+                error: "An error occurred processing your request. Please try again."
+            });
+        }
     }
 }
+
