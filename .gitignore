@@ -30,7 +30,15 @@ Thumbs.db
 *.swo
 
 # Docker
-.dockerignore
+*.dockerignore
+*.Docker.md 
+Dockerfile
+compose.yaml
+backend/Dockerfile
+frontend/Dockerfile 
+README.Docker.md
 
 # Git
 .git/
+.gitignore
+.gitignore

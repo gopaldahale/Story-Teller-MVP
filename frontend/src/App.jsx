@@ -15,7 +15,7 @@ export default function App(){
   const handlePlay = async () => {
     setLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4040/api/generate";
+      const apiUrl = import.meta.env.VITE_API_URL || "/api/generate";
       const resp = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

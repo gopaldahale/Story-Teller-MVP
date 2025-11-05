@@ -1,0 +1,13 @@
+{
+  "name": "story-ai-mvp",
+  "version": "1.0.0",
+  "description": "Story AI MVP - Frontend and Backend",
+  "type": "module",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.21.0",
+    "@google/generative-ai": "^0.24.1"
+  }
+}
